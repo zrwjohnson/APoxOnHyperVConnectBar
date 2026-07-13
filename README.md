@@ -35,8 +35,8 @@ The connect bar is drawn by `vmconnect.exe`, which runs on the host (it's part o
 Hyper-V Manager). Inside the guest OS there's no connect bar and nothing for the
 app to attach to.
 
-- ✅ **Host (your physical PC)** — run the app here.
-- ❌ **Guest (inside the VM)** — running it here does nothing ("No VM window found").
+- ✓ **Host (your physical PC)** — run the app here.
+- X **Guest (inside the VM)** — running it here does nothing ("No VM window found").
 
 > This works with Hyper-V's own **VMConnect** window. It is not for plain Remote
 > Desktop (`mstsc`) sessions — that's a different connect bar.
