@@ -1,0 +1,6 @@
+#include "resource.h"
+
+// Embed the freshly-built ApiHooker.dll straight into the launcher executable.
+// The build step copies ApiHooker.dll next to this .rc before compiling it, so
+// the reference below is resolved relative to the Launcher project directory.
+IDR_APIHOOKER_DLL RCDATA "ApiHooker.dll"
