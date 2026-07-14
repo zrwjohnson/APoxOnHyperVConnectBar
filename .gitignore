@@ -1,0 +1,10 @@
+x64/
+build/
+dist/
+.vs/
+**/*.user
+**/*.obj
+**/*.res
+
+# transient copy created while embedding the DLL into the launcher resource
+Launcher/ApiHooker.dll

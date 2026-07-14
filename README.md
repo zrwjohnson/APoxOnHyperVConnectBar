@@ -1,71 +1,94 @@
-# VmMinimize — minimise the VM window from *inside* the VM
+# APoxOnHyperVConnectBar
 
-A desktop icon **inside the guest VM** that minimises the whole VM window on the
-host — no pop-ups, no leaving the VM, no antivirus-tripping injection.
+> Control the floating "connect bar" at the top of a Hyper-V VM window — show it,
+> minimise it, or hide it for good.
+
+![](assets/image.png)
+
+The `Remote Desktop Connection` app lets you hide the connect-bar forever, but
+Hyper-V's `vmconnect.exe` does not! This horrible, ugly, unclosable floating bar
+is annoying!
+
+**Let's put a pox on it.**
+
+## What it is
+
+A tiny **single-file GUI app** (no install, no separate DLL) that lets you pick how
+the Hyper-V connect bar behaves:
+
+| Mode | Behaviour |
+| --- | --- |
+| **Show** | Connect bar always visible (pinned). |
+| **Minimise** | Connect bar auto-hides (unpinned) — hover the top-centre of the screen to bring it back. |
+| **Hidden** | Connect bar permanently hidden until you choose Show or Minimise again. |
+| **Tray** | Launcher-only mode: the app lives in the system tray and its icon minimises / restores the whole VM window on click (no injection). |
+
+## Usage
+
+1. Run **`APoxOnHyperVConnectBar.exe`** on the Hyper-V **host** (the machine
+   running Hyper-V — that is where the VM window lives).
+2. Open / enter a VM in *Hyper-V Manager* so a VM window exists.
+3. Pick a mode and click **Apply**.
+4. To leave a full-screen VM, press **Ctrl+Alt+Left Arrow**.
+
+Your last choice is remembered and re-applied automatically whenever the app
+re-attaches to the VM. There's a built-in **Help / Troubleshooting** button for
+when something doesn't behave.
+
+> **Run it on the host, not inside the guest.** The connect-bar is drawn by
+> `vmconnect.exe`, which runs on the Hyper-V host, so there is nothing to control
+> from inside the guest OS.
+
+### Administrator rights
+
+If `vmconnect.exe` is running elevated, the app automatically re-launches itself
+elevated (you'll get a UAC prompt) and applies your choice from there. You can
+also just right-click → **Run as administrator**.
+
+### Notes & limits
+
+- A mode applies to the current `vmconnect.exe` session. If you close and reopen
+  the VM, run the app and click Apply again (it remembers your last choice).
+- **Show** and **Hidden** are enforced by hooking the bar's window and are the
+  most reliable. **Minimise** additionally toggles the bar's real *pin* button so
+  Hyper-V auto-hides it; if that doesn't take on your build of Windows, just click
+  the pin (thumb-tack) on the bar yourself. The Help window explains this.
+
+## Building
+
+Requires **Visual Studio 2022 or 2026** with the *Desktop development with C++*
+workload.
+
+* **From a command prompt:** run [`build.bat`](build.bat). It builds
+  `ApiHooker.dll`, embeds it into the launcher, and links the single-file
+  `dist\APoxOnHyperVConnectBar.exe`.
+* **From the IDE:** open `APoxOnHyperVConnectBar.sln`, pick **Release / x64**, and
+  Build. The output is `x64\Release\APoxOnHyperVConnectBar.exe`.
+
+The exe is statically linked (`/MT`) and uses `$(DefaultPlatformToolset)`, so it's
+a genuinely self-contained single file that runs on any recent Windows/VS without
+a Visual C++ redistributable or a "retarget" prompt.
 
 ## How it works
 
-A program inside the guest can't touch the host's window directly, so:
+- `ApiHooker.dll` is **embedded inside the app** as a resource. When you Apply a
+  mode, the app extracts it to `%TEMP%` and injects it into `vmconnect.exe`
+  (`CreateRemoteThread` + `LoadLibraryW`) — once. The DLL creates a hidden control
+  window, so later mode changes are sent to it without re-injecting.
+- The DLL hooks the WinAPI `ShowWindow` (via Microsoft Detours) on the connect
+  bar (window class `BBarWindowClass`, title `BBar`):
+  - **Hidden** → suppress every show, so it never appears.
+  - **Show** → suppress every hide, so it stays visible.
+  - **Minimise** → let Hyper-V manage it, and click the bar's real pin toolbar
+    button so it auto-hides.
+- **Tray** mode uses no DLL at all — the launcher hosts a notification-area icon
+  and minimises / restores the `vmconnect.exe` main window via `WM_SYSCOMMAND`
+  (`SC_MINIMIZE` / `SC_RESTORE`).
 
-1. Inside the VM, a tiny program (**`VmMinimize.exe`**) sends a signal to the host
-   over a **Hyper-V Socket** (a built-in guest↔host channel — no networking).
-2. On the host, a hidden listener (**`VmMinimizeHost.exe`**) receives it and
-   minimises the VM's `vmconnect.exe` window (the one you're looking at).
+> Note: because this works by injecting a DLL, some antivirus products may flag
+> it. That is inherent to the technique; the full source is here so you can build
+> it yourself.
 
-No firewall, no IP addresses, and nothing is exposed to the network — Hyper-V
-Sockets only connect a guest to its own host.
+## Tips
 
-## Build
-
-Run **`build.cmd`** (needs Visual Studio with the C++ workload). It produces:
-
-- `VmMinimizeHost.exe` — stays on the host.
-- `VmMinimize.exe` — goes into the VM.
-
-## Set up the HOST (once)
-
-1. Right-click **`install-host.cmd`** → **Run as administrator** (or just
-   double-click — it will ask for admin).
-
-   It registers the Hyper-V Socket service and creates a logon task so the
-   listener starts automatically, elevated, at every sign-in (elevated so it can
-   minimise an elevated `vmconnect`, and so there are **no pop-ups** when you use
-   it).
-
-To remove it later: run **`uninstall-host.cmd`** as administrator.
-
-## Set up the GUEST (each VM)
-
-1. Copy **`VmMinimize.exe`** into the VM (drag-drop with Enhanced Session, a
-   shared folder, or download it inside the VM).
-2. In the VM, right-click it → **Send to → Desktop (create shortcut)**, or make a
-   shortcut anywhere you like (Start menu, taskbar, a hotkey via the shortcut's
-   properties).
-
-That's it — no admin needed inside the VM.
-
-## Use it
-
-Inside the VM, **double-click the `VmMinimize` shortcut**. The VM window minimises
-on the host and you're back at your host desktop. Bring it back from the host
-taskbar as usual.
-
-Tip: give the shortcut a keyboard shortcut (Shortcut properties → *Shortcut key*)
-so you can minimise with a keypress from inside the VM.
-
-## Requirements
-
-- Host: Windows 10/11 or Windows Server with Hyper-V.
-- Guest: Windows 10/11 (Hyper-V Sockets need the VMBus integration, which is on by
-  default for Windows guests). Gen-2 VMs recommended.
-
-## Troubleshooting
-
-- **Nothing happens:** make sure the host listener is running — Task Manager →
-  Details → `VmMinimizeHost.exe`. If it's missing, re-run `install-host.cmd` and
-  sign out/in (or `schtasks /run /tn APoxVmMinimizeHost`).
-- **Still nothing:** confirm the VM's *Data Exchange / Integration Services* are
-  enabled and the guest is a Windows 10/11 build with Hyper-V Socket support.
-- **It minimises the wrong VM (multiple VMs open):** it targets the VM window that
-  currently has focus (the one you clicked from); if that can't be determined it
-  minimises all VM windows.
+![](assets/tips.jpg)
